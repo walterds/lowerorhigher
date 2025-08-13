@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Higher or Lower (ASCII Cards)</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="game" id="app">
+    <div class="header">
+      <div class="title">
+        <span class="pill">ASCII</span>
+        <div>
+          Higher or Lower
+          <div class="rule">Equal cards count as a loss unless you bet Tie (pays 3x). Goal: reach $1000 in the shortest time.</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="panel balance">
+          <span class="muted">Player:</span>
+          <span class="name-badge" id="playerNameBadge">�</span>
+        </div>
+        <div class="panel balance">
+          <span class="muted">Balance:</span>
+          <span id="balance">$100</span>
+        </div>
+        <div class="panel balance">
+          <span class="muted">Hands:</span>
+          <span id="hands">0</span>
+        </div>
+        <div class="panel balance">
+          <span class="muted">Time:</span>
+          <span id="timer">00:00</span>
+        </div>
+        <button class="btn ghost" id="leaderboardBtn" title="Show leaderboard">Leaderboard</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="muted" style="font-weight:700; margin-bottom:6px">Place your bet</div>
+      <div class="chips" id="chips"></div>
+      <div class="row" style="justify-content:space-between; margin-top:10px">
+        <div class="muted">Current bet: <strong id="currentBet">$0</strong></div>
+        <button class="btn ghost" id="resetBtn" title="Reset game">Reset</button>
+      </div>
+    </div>
+
+    <div class="board">
+      <div class="card-panel">
+        <div class="card-title">Current Card</div>
+        <div class="card"><pre class="card-ascii" id="currentCardPre"></pre></div>
+      </div>
+      <div class="card-panel">
+        <div class="card-title">Next Card</div>
+        <div class="card"><pre class="card-ascii" id="nextCardPre"></pre></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="higherBtn" disabled>Higher ?</button>
+      <button class="btn secondary" id="lowerBtn" disabled>Lower ?</button>
+      <button class="btn tertiary" id="tieBtn" disabled>Tie ?</button>
+    </div>
+  </div>
+
+  <!-- Outcome Modal -->
+  <div class="modal-backdrop" id="outcomeBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3 id="outcomeTitle">You won!</h3>
+      <p id="outcomeBody"></p>
+      <div class="row">
+        <button class="chip" id="nextRoundBtn">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard Modal -->
+  <div class="modal-backdrop" id="leaderboardBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3>Leaderboard</h3>
+      <div id="leaderboardContainer" class="panel" style="max-height:50vh; overflow:auto; margin-top:10px"></div>
+      <div class="row">
+        <button class="chip" id="exportLeaderboardBtn">Export .txt</button>
+        <button class="chip" id="clearLeaderboardBtn">Clear</button>
+        <div style="flex:1"></div>
+        <button class="chip" id="closeLeaderboardBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Name Gate -->
+  <div class="gate" id="nameGate">
+    <div class="card">
+      <h2 style="margin:0 0 6px 0">Welcome!</h2>
+      <p class="muted" style="margin:0 0 10px 0">Enter your name to start playing.</p>
+      <input type="text" class="input" id="nameInput" placeholder="Your name"/>
+      <div class="spacer"></div>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn" id="startBtn">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+    const SUITS = ["S","H","D","C"]; // ASCII suit letters
+    const RANKS = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"]; // Ace high
+    const RANK_VALUE = { "2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"10":10,"J":11,"Q":12,"K":13,"A":14 };
+    const START_BALANCE = 100;
+    const TARGET_BALANCE = 1000;
+    const BETS = [1,2,5,10,25,50];
+
+    let playerName = "";
+    let balance = START_BALANCE;
+    let currentBet = 0;
+    let deck = [];
+    let currentCard = null;
+    let revealedNextCard = null;
+    let awaitingNextRound = false;
+
+    let handsPlayed = 0;
+    let goalAchieved = false;
+
+    // UI refs
+    const playerNameBadge = document.getElementById("playerNameBadge");
+    const balanceEl = document.getElementById("balance");
+    const chipsEl = document.getElementById("chips");
+    const currentBetEl = document.getElementById("currentBet");
+    const currentCardPre = document.getElementById("currentCardPre");
+    const nextCardPre = document.getElementById("nextCardPre");
+    const higherBtn = document.getElementById("higherBtn");
+    const lowerBtn = document.getElementById("lowerBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const nameGate = document.getElementById("nameGate");
+    const nameInput = document.getElementById("nameInput");
+    const startBtn = document.getElementById("startBtn");
+    const outcomeBackdrop = document.getElementById("outcomeBackdrop");
+    const outcomeTitle = document.getElementById("outcomeTitle");
+    const outcomeBody = document.getElementById("outcomeBody");
+    const nextRoundBtn = document.getElementById("nextRoundBtn");
+    const handsEl = document.getElementById("hands");
+
+    // Leaderboard refs
+    const leaderboardBtn = document.getElementById("leaderboardBtn");
+    const leaderboardBackdrop = document.getElementById("leaderboardBackdrop");
+    const leaderboardContainer = document.getElementById("leaderboardContainer");
+    const exportLeaderboardBtn = document.getElementById("exportLeaderboardBtn");
+    const clearLeaderboardBtn = document.getElementById("clearLeaderboardBtn");
+    const closeLeaderboardBtn = document.getElementById("closeLeaderboardBtn");
+
+    function createDeck(){
+      const d = [];
+      for(const s of SUITS){
+        for(const r of RANKS){
+          d.push({ suit:s, rank:r, value:RANK_VALUE[r] });
+        }
+      }
+      for(let i=d.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [d[i], d[j]] = [d[j], d[i]];
+      }
+      return d;
+    }
+
+    function drawCard(){
+      if(deck.length === 0){
+        deck = createDeck();
+      }
+      return deck.pop();
+    }
+
+    // ---- Improved ASCII renderer ----
+    function asciiCard(card){
+      if(!card){
+        return [
+          "+-------------+",
+          "|             |",
+          "|    READY    |",
+          "|             |",
+          "+-------------+"
+        ].join("\n");
+      }
+
+      const innerWidth = 13;
+      const innerHeight = 13;
+      const topBorder = "+-------------+";
+      const bottomBorder = "+-------------+";
+      const lines = Array.from({length: innerHeight}, () => " ".repeat(innerWidth));
+
+      const rank = card.rank;  // "A","K","Q","J","10"...,"2"
+      const suit = card.suit;  // "S","H","D","C"
+
+      // Corners
+      writeAt(lines, 1, 1, rank);
+      writeAt(lines, 2, 1, suit);
+      writeRight(lines, innerHeight - 2, rank);
+      writeRight(lines, innerHeight - 3, suit);
+
+      // Pips / faces
+      if(rank === "A"){
+        drawAcePip(lines, suit);
+      } else if(["J","Q","K"].includes(rank)){
+        drawFaceFrame(lines, rank, suit);
+      } else {
+        const value = RANK_VALUE[rank];
+        drawNumberPips(lines, value, suit);
+      }
+
+      return [topBorder, ...lines.map(l => "|" + l + "|"), bottomBorder].join("\n");
+    }
+
+    function asciiBack(){
+      const innerWidth = 13;
+      const innerHeight = 13;
+      const topBorder = "+-------------+";
+      const bottomBorder = "+-------------+";
+      const lines = [];
+
+      for(let r=0; r<innerHeight; r++){
+        let row = "";
+        for(let c=0; c<innerWidth; c++){
+          const isMedallion = (r>=5 && r<=7) && (c>=3 && c<=9);
+          if(isMedallion){
+            const label = "LOW-HIGH";
+            const start = 3;
+            const offset = c - start;
+            row += label[offset] || " ";
+          }else{
+            row += ((r + c) % 2 === 0) ? "#" : ":";
+          }
+        }
+        lines.push(row);
+      }
+      return [topBorder, ...lines.map(l => "|" + l + "|"), bottomBorder].join("\n");
+    }
+
+    // ---- Helpers for ASCII ----
+    function writeAt(lines, row, col, text){
+      const line = lines[row].split("");
+      for(let i=0;i<text.length && col+i<line.length;i++){
+        line[col+i] = text[i];
+      }
+      lines[row] = line.join("");
+    }
+
+    function writeRight(lines, row, text){
+      const line = lines[row].split("");
+      const start = line.length - text.length - 1; // keep a right margin of 1
+      for(let i=0;i<text.length;i++){
+        const idx = start + i;
+        if(idx>=0 && idx<line.length) line[idx] = text[i];
+      }
+      lines[row] = line.join("");
+    }
+
+    function drawAcePip(lines, suit){
+      const centerRow = 6;
+      const centerCol = 6;
+      const pattern = [
+        {row:centerRow-2, count:1},
+        {row:centerRow-1, count:3},
+        {row:centerRow,   count:5},
+        {row:centerRow+1, count:3},
+        {row:centerRow+2, count:1},
+      ];
+      for(const piece of pattern){
+        const start = centerCol - Math.floor(piece.count/2);
+        for(let i=0;i<piece.count;i++){
+          writeAt(lines, piece.row, start + i, suit);
+        }
+      }
+    }
+
+    function drawFaceFrame(lines, rank, suit){
+      // 11-char frame centered horizontally with 1-char padding
+      const startCol = 1;
+      const frame = [
+        ".---------.",
+        `|    ${rank.padEnd(2," ")}   |`,
+        `|    ${suit}    |`,
+        "|         |",
+        "|         |",
+        "'---------'"
+      ];
+      const startRow = 4;
+      for(let i=0;i<frame.length;i++){
+        writeAt(lines, startRow + i, startCol, frame[i]);
+      }
+    }
+
+    function drawNumberPips(lines, value, suit){
+      const L = 2, M = 6, R = 10;
+      const rows = [3,5,6,7,9];
+      const positions = [];
+      const addPair = (row) => { positions.push([row,L],[row,R]); };
+      const addMid  = (row) => { positions.push([row,M]); };
+
+      switch(value){
+        case 2:  addMid(rows[0]); addMid(rows[4]); break;
+        case 3:  addMid(rows[0]); addMid(rows[2]); addMid(rows[4]); break;
+        case 4:  addPair(rows[0]); addPair(rows[4]); break;
+        case 5:  addPair(rows[0]); addMid(rows[2]); addPair(rows[4]); break;
+        case 6:  addPair(rows[0]); addPair(rows[2]); addPair(rows[4]); break;
+        case 7:  addPair(rows[0]); addPair(rows[2]); addPair(rows[4]); addMid(rows[1]); break;
+        case 8:  addPair(rows[0]); addPair(rows[1]); addPair(rows[3]); addPair(rows[4]); break;
+        case 9:  addPair(rows[0]); addPair(rows[1]); addMid(rows[2]); addPair(rows[3]); addPair(rows[4]); break;
+        case 10: addPair(rows[0]); addPair(rows[1]); addPair(rows[2]); addPair(rows[3]); addPair(rows[4]); break;
+        default: addMid(rows[2]);
+      }
+      for(const [r,c] of positions){
+        writeAt(lines, r, c, suit);
+      }
+    }
+
+    // UI update
+    function updateChips(){
+      chipsEl.innerHTML = "";
+      BETS.forEach(amount => {
+        const btn = document.createElement("button");
+        btn.className = "chip";
+        btn.textContent = "$" + amount;
+        const canAfford = amount <= balance;
+        btn.disabled = !canAfford;
+        if(amount === currentBet) btn.classList.add("active");
+        btn.addEventListener("click", () => {
+          if(!canAfford) return;
+          currentBet = amount;
+          updateHUD();
+        });
+        chipsEl.appendChild(btn);
+      });
+    }
+
+    function updateHUD(){
+      playerNameBadge.textContent = playerName || "�";
+      balanceEl.textContent = "$" + balance;
+      currentBetEl.textContent = "$" + (currentBet || 0);
+      handsEl.textContent = String(handsPlayed);
+      updateChips();
+
+      currentCardPre.textContent = asciiCard(currentCard);
+      nextCardPre.textContent = asciiBack();
+
+      const canPlay = !!playerName && !!currentCard && currentBet > 0 && currentBet <= balance && !awaitingNextRound;
+      higherBtn.disabled = !canPlay;
+      lowerBtn.disabled = !canPlay;
+    }
+
+    function startRound(){
+      if(!currentCard){
+        currentCard = drawCard();
+      }
+      revealedNextCard = null;
+      awaitingNextRound = false;
+      updateHUD();
+    }
+
+    function showOutcomeModal(title, body){
+      outcomeTitle.textContent = title;
+      outcomeBody.innerHTML = body;
+      outcomeBackdrop.classList.add("open");
+    }
+
+    function closeOutcomeModal(){
+      outcomeBackdrop.classList.remove("open");
+    }
+
+    function handleGuess(direction){ // "higher" | "lower"
+      if(awaitingNextRound) return;
+      if(currentBet <= 0 || currentBet > balance) return;
+
+      handsPlayed += 1;
+
+      revealedNextCard = drawCard();
+      nextCardPre.textContent = asciiCard(revealedNextCard);
+
+      const a = currentCard.value;
+      const b = revealedNextCard.value;
+      let won = false;
+      if(direction === "higher") won = b > a;
+      else if(direction === "lower") won = b < a;
+
+      const amount = currentBet;
+      if(won){
+        balance += amount; // correct guess wins bet amount
+      }else{
+        balance -= amount;
+      }
+
+      if(balance >= TARGET_BALANCE){
+        goalAchieved = true;
+      }
+
+      awaitingNextRound = true;
+
+      const dirLabel = direction === "higher" ? "Higher" : "Lower";
+      const resultTitle = goalAchieved ? "Goal achieved!" : (won ? "You won!" : "You lost.");
+      const delta = won ? `<span style="color:${getCssVar('--success')}">+$${amount}</span>` :
+                          `<span style="color:${getCssVar('--danger')}">-$${amount}</span>`;
+      const extraGoal = goalAchieved ? `<div style="margin-top:6px"><strong>Target reached:</strong> $${balance} in ${handsPlayed} hands.</div>` : "";
+      const body = `
+        <div style="margin-bottom:6px"><strong>${escapeHtml(playerName)}</strong>, you chose <strong>${dirLabel}</strong>.</div>
+        <div class="rule" style="margin-bottom:6px">Current: ${cardLabel(currentCard)} ? Next: ${cardLabel(revealedNextCard)}</div>
+        <div style="margin-bottom:6px">Result: ${delta}</div>
+        <div class="muted">New balance: <strong>$${balance}</strong></div>
+        ${extraGoal}
+      `;
+
+      showOutcomeModal(resultTitle, body);
+      updateHUD();
+      if(balance <= 0){
+        higherBtn.disabled = true;
+        lowerBtn.disabled = true;
+      }
+    }
+
+    function proceedToNext(){
+      closeOutcomeModal();
+
+      if (goalAchieved) {
+        addLeaderboardEntry({
+          name: playerName,
+          result: "win",
+          hands: handsPlayed,
+          finalBalance: balance,
+          dateISO: new Date().toISOString(),
+        });
+        openLeaderboard();
+        higherBtn.disabled = true;
+        lowerBtn.disabled = true;
+        return;
+      }
+
+      if (balance <= 0) {
+        addLeaderboardEntry({
+          name: playerName,
+          result: "bust",
+          hands: handsPlayed,
+          finalBalance: balance,
+          dateISO: new Date().toISOString(),
+        });
+        openLeaderboard();
+        alert("Game over! You're out of funds. Resetting to $100.");
+        resetGame();
+        return;
+      }
+
+      currentCard = revealedNextCard;
+      revealedNextCard = null;
+      awaitingNextRound = false;
+      updateHUD();
+    }
+
+    function cardLabel(c){ return c ? `${c.rank}${c.suit}` : "�"; }
+    function getCssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name) || ""; }
+    function escapeHtml(str){
+      return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+    }
+
+    function resetGame(){
+      balance = START_BALANCE;
+      currentBet = 0;
+      deck = createDeck();
+      currentCard = drawCard();
+      revealedNextCard = null;
+      awaitingNextRound = false;
+      handsPlayed = 0;
+      goalAchieved = false;
+      updateHUD();
+    }
+
+    // Leaderboard (localStorage + export)
+    const LB_KEY = "hl_leaderboard_v1";
+
+    function loadLeaderboard(){
+      try {
+        const raw = localStorage.getItem(LB_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch { return []; }
+    }
+
+    function saveLeaderboard(entries){
+      localStorage.setItem(LB_KEY, JSON.stringify(entries));
+    }
+
+    function addLeaderboardEntry(entry){
+      const entries = loadLeaderboard();
+      entries.push(entry);
+      saveLeaderboard(entries);
+      renderLeaderboard();
+    }
+
+    function renderLeaderboard(){
+      const entries = loadLeaderboard();
+
+      const sorted = entries.slice().sort((a,b) => {
+        if (a.result !== b.result) return a.result === "win" ? -1 : 1;
+        if (a.result === "win") return a.hands - b.hands || (a.dateISO < b.dateISO ? -1 : 1);
+        return b.hands - a.hands || (a.dateISO < b.dateISO ? -1 : 1);
+      });
+
+      if (sorted.length === 0){
+        leaderboardContainer.innerHTML = `<div class="muted">No results yet. Win $${TARGET_BALANCE} to record a score.</div>`;
+        return;
+      }
+
+      const lines = [];
+      lines.push("Name           | Result | Hands | Final | Date");
+      lines.push("----------------+--------+-------+-------+------------------------");
+      for (const e of sorted){
+        const name = (e.name || "�").toString().slice(0,14).padEnd(14," ");
+        const res  = (e.result === "win" ? "WIN" : "BUST").padEnd(6," ");
+        const hands = String(e.hands).padStart(5," ");
+        const fin  = ("$" + e.finalBalance).padStart(6," ");
+        const date = new Date(e.dateISO).toLocaleString();
+        lines.push(`${name} | ${res} | ${hands} | ${fin} | ${date}`);
+      }
+      leaderboardContainer.innerHTML = `<pre style="margin:0; white-space:pre">${lines.join("\n")}</pre>`;
+    }
+
+    function openLeaderboard(){
+      renderLeaderboard();
+      leaderboardBackdrop.classList.add("open");
+    }
+
+    function closeLeaderboard(){
+      leaderboardBackdrop.classList.remove("open");
+    }
+
+    function exportLeaderboardTxt(){
+      const entries = loadLeaderboard();
+      const header = "Name | Result | Hands | Final | Date";
+      const rows = entries.map(e => {
+        return `${e.name} | ${e.result} | ${e.hands} | $${e.finalBalance} | ${e.dateISO}`;
+      });
+      const text = [header, ...rows].join("\n");
+      const blob = new Blob([text], {type:"text/plain"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "leaderboard.txt";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // Wire up
+    higherBtn.addEventListener("click", () => handleGuess("higher"));
+    lowerBtn.addEventListener("click", () => handleGuess("lower"));
+    nextRoundBtn.addEventListener("click", proceedToNext);
+    outcomeBackdrop.addEventListener("click", (e) => {
+      if(e.target === outcomeBackdrop){ proceedToNext(); }
+    });
+    resetBtn.addEventListener("click", resetGame);
+
+    startBtn.addEventListener("click", () => {
+      const val = nameInput.value.trim();
+      if(!val){ nameInput.focus(); return; }
+      playerName = val;
+      nameGate.style.display = "none";
+      resetGame();
+    });
+    nameInput.addEventListener("keydown", (e) => {
+      if(e.key === "Enter"){ startBtn.click(); }
+    });
+
+    leaderboardBtn.addEventListener("click", openLeaderboard);
+    closeLeaderboardBtn.addEventListener("click", closeLeaderboard);
+    leaderboardBackdrop.addEventListener("click", (e) => {
+      if(e.target === leaderboardBackdrop){ closeLeaderboard(); }
+    });
+    exportLeaderboardBtn.addEventListener("click", exportLeaderboardTxt);
+    clearLeaderboardBtn.addEventListener("click", () => {
+      if(confirm("Clear all leaderboard entries?")){
+        saveLeaderboard([]);
+        renderLeaderboard();
+      }
+    });
+
+    // Initialize gate and initial UI
+    updateChips();
+    updateHUD();
+  </script>
+</body>
+</html>
