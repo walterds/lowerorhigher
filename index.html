@@ -4,164 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Higher or Lower (ASCII Cards)</title>
-  <style>
-    :root{
-      --bg1:#0f172a;
-      --bg2:#1e293b;
-      --accent:#22d3ee;
-      --accent-2:#a78bfa;
-      --text:#e2e8f0;
-      --muted:#94a3b8;
-      --danger:#f87171;
-      --success:#34d399;
-      --chip:#0b1223;
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      min-height:100vh;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
-      color:var(--text);
-      background: radial-gradient(1200px 800px at 20% 10%, #0b1223 0%, #0b1223 30%, #0f172a 60%, #0a0f1f 100%);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:24px;
-    }
-    .game{
-      width:min(1100px, 96vw);
-      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-      border:1px solid rgba(255,255,255,0.08);
-      border-radius:16px;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
-      padding:24px;
-    }
-    .row{
-      display:flex; gap:16px; align-items:center; flex-wrap:wrap;
-    }
-    .header{
-      display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px;
-    }
-    .title{
-      display:flex; align-items:center; gap:12px; font-weight:700; letter-spacing:0.3px;
-    }
-    .pill{
-      font-size:12px; padding:6px 10px; border-radius:999px; color:#05121a;
-      background: linear-gradient(180deg, #67e8f9, #22d3ee);
-      border:1px solid rgba(0,0,0,0.1);
-    }
-    .panel{
-      background: rgba(255,255,255,0.04);
-      border:1px solid rgba(255,255,255,0.08);
-      border-radius:12px;
-      padding:14px 16px;
-    }
-    .muted{ color:var(--muted) }
-    .balance{
-      display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px;
-    }
-    .name-badge{
-      padding:6px 10px; border-radius:8px; background:rgba(34,211,238,0.12);
-      border:1px solid rgba(34,211,238,0.25); color:#a5f3fc; font-weight:600;
-    }
-    .chips{ display:flex; gap:10px; flex-wrap:wrap }
-    .chip{
-      appearance:none; border:none; cursor:pointer;
-      padding:10px 14px; border-radius:10px;
-      background: linear-gradient(180deg, #0b1223, #0b1328);
-      border:1px solid rgba(255,255,255,0.08);
-      color:var(--text); font-weight:700; letter-spacing:0.3px;
-      transition: all .15s ease;
-    }
-    .chip:hover{ transform: translateY(-1px); border-color: rgba(34,211,238,0.4) }
-    .chip[disabled]{ opacity:.4; cursor:not-allowed; transform:none; }
-    .chip.active{
-      outline:2px solid rgba(34,211,238,0.5);
-      background: linear-gradient(180deg, rgba(34,211,238,0.18), rgba(167,139,250,0.12));
-      border-color: rgba(34,211,238,0.7);
-    }
-
-    .board{
-      display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:12px;
-    }
-    .card-panel{ display:flex; flex-direction:column; gap:8px; }
-    .card-title{ font-weight:700; letter-spacing:.2px; }
-    .card{
-      background: #050b16;
-      border:1px solid rgba(255,255,255,0.12);
-      border-radius:12px;
-      padding:10px;
-      overflow:hidden;
-    }
-    pre.card-ascii{
-      margin:0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
-      font-size:15px; line-height:1.1; color:#e5e7eb;
-      min-height:240px;
-    }
-
-    .actions{
-      display:flex; gap:12px; margin-top:16px; flex-wrap:wrap;
-    }
-    .btn{
-      appearance:none; border:none; cursor:pointer;
-      padding:12px 18px; border-radius:12px; font-weight:800;
-      color:#031019; background: linear-gradient(180deg, #67e8f9, #22d3ee);
-      border:1px solid rgba(0,0,0,0.1);
-      letter-spacing:.4px; transition: transform .1s ease, box-shadow .1s ease;
-      box-shadow: 0 6px 18px rgba(34,211,238,0.25);
-    }
-    .btn:hover{ transform: translateY(-1px) }
-    .btn.secondary{
-      color:#0d1222; background: linear-gradient(180deg, #d8b4fe, #a78bfa);
-      box-shadow: 0 6px 18px rgba(167,139,250,0.25);
-    }
-    .btn.ghost{
-      background: transparent; color: var(--muted);
-      border:1px solid rgba(255,255,255,0.12);
-      box-shadow:none; font-weight:700;
-    }
-    .btn[disabled]{ opacity:.5; cursor:not-allowed; transform:none; }
-
-    .rule{ font-size:12px; color:var(--muted) }
-
-    /* Modal */
-    .modal-backdrop{
-      position:fixed; inset:0; display:none; align-items:center; justify-content:center;
-      background: rgba(0,0,0,0.55); padding:16px; z-index:20;
-    }
-    .modal-backdrop.open{ display:flex }
-    .modal{
-      width:min(620px, 94vw);
-      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
-      border:1px solid rgba(255,255,255,0.14);
-      border-radius:16px; padding:18px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
-    }
-    .modal h3{ margin:0 0 8px 0 }
-    .modal p{ margin:6px 0; color:var(--muted) }
-    .modal .row{ justify-content:flex-end; margin-top:12px }
-
-    /* Name gate */
-    .gate{
-      position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:30;
-      background: radial-gradient(900px 600px at 30% 10%, #0b1223 0%, #0f172a 60%, #0a0f1f 100%);
-      padding:16px;
-    }
-    .gate .card{
-      width:min(520px, 94vw);
-      border-radius:16px; padding:18px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
-      border:1px solid rgba(255,255,255,0.14);
-    }
-    .input{
-      width:100%; padding:12px 12px; border-radius:10px; outline:none;
-      border:1px solid rgba(255,255,255,0.14);
-      background: rgba(255,255,255,0.04); color:var(--text);
-      font-size:16px;
-    }
-    .spacer{ height:8px }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="game" id="app">
@@ -170,13 +13,13 @@
         <span class="pill">ASCII</span>
         <div>
           Higher or Lower
-          <div class="rule">Equal cards count as a loss. Goal: reach $1000 in the fewest hands.</div>
+          <div class="rule">Equal cards count as a loss unless you bet Tie (pays 3x). Goal: reach $1000 in the shortest time.</div>
         </div>
       </div>
       <div class="row">
         <div class="panel balance">
           <span class="muted">Player:</span>
-          <span class="name-badge" id="playerNameBadge">—</span>
+          <span class="name-badge" id="playerNameBadge">ï¿½</span>
         </div>
         <div class="panel balance">
           <span class="muted">Balance:</span>
@@ -185,6 +28,10 @@
         <div class="panel balance">
           <span class="muted">Hands:</span>
           <span id="hands">0</span>
+        </div>
+        <div class="panel balance">
+          <span class="muted">Time:</span>
+          <span id="timer">00:00</span>
         </div>
         <button class="btn ghost" id="leaderboardBtn" title="Show leaderboard">Leaderboard</button>
       </div>
@@ -213,6 +60,7 @@
     <div class="actions">
       <button class="btn" id="higherBtn" disabled>Higher ?</button>
       <button class="btn secondary" id="lowerBtn" disabled>Lower ?</button>
+      <button class="btn tertiary" id="tieBtn" disabled>Tie ?</button>
     </div>
   </div>
 
@@ -254,8 +102,9 @@
     </div>
   </div>
 
-  <script>
-    // Game state
+  <script src="app.js"></script>
+</body>
+</html>
     const SUITS = ["S","H","D","C"]; // ASCII suit letters
     const RANKS = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"]; // Ace high
     const RANK_VALUE = { "2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"10":10,"J":11,"Q":12,"K":13,"A":14 };
@@ -485,7 +334,7 @@
     }
 
     function updateHUD(){
-      playerNameBadge.textContent = playerName || "—";
+      playerNameBadge.textContent = playerName || "ï¿½";
       balanceEl.textContent = "$" + balance;
       currentBetEl.textContent = "$" + (currentBet || 0);
       handsEl.textContent = String(handsPlayed);
@@ -604,7 +453,7 @@
       updateHUD();
     }
 
-    function cardLabel(c){ return c ? `${c.rank}${c.suit}` : "—"; }
+    function cardLabel(c){ return c ? `${c.rank}${c.suit}` : "ï¿½"; }
     function getCssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name) || ""; }
     function escapeHtml(str){
       return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
@@ -661,7 +510,7 @@
       lines.push("Name           | Result | Hands | Final | Date");
       lines.push("----------------+--------+-------+-------+------------------------");
       for (const e of sorted){
-        const name = (e.name || "—").toString().slice(0,14).padEnd(14," ");
+        const name = (e.name || "ï¿½").toString().slice(0,14).padEnd(14," ");
         const res  = (e.result === "win" ? "WIN" : "BUST").padEnd(6," ");
         const hands = String(e.hands).padStart(5," ");
         const fin  = ("$" + e.finalBalance).padStart(6," ");
