@@ -434,39 +434,33 @@ function resetGame(){
   updateHUD();
 }
 
-// Leaderboard (localStorage + export)
-const LB_KEY = "hl_leaderboard_v1";
-
-function loadLeaderboard(){
-  try {
-    const raw = localStorage.getItem(LB_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+// Leaderboard (server-side via NDJSON file)
+async function addLeaderboardEntry(entry){
+  await fetch('/api/leaderboard', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(entry)
+  });
+  await renderLeaderboard();
 }
 
-function saveLeaderboard(entries){
-  localStorage.setItem(LB_KEY, JSON.stringify(entries));
+async function fetchLeaderboard(){
+  const res = await fetch('/api/leaderboard');
+  if(!res.ok) return [];
+  return res.json();
 }
 
-function addLeaderboardEntry(entry){
-  const entries = loadLeaderboard();
-  entries.push(entry);
-  saveLeaderboard(entries);
-  renderLeaderboard();
-}
-
-function renderLeaderboard(){
-  const entries = loadLeaderboard();
+async function renderLeaderboard(){
+  const entries = await fetchLeaderboard();
 
   const sorted = entries.slice().sort((a,b) => {
-    if (a.result !== b.result) return a.result === "win" ? -1 : 1;
-    if (a.result === "win"){
+    if (a.result !== b.result) return a.result === 'win' ? -1 : 1;
+    if (a.result === 'win'){
       const aTime = a.elapsedMs ?? Number.MAX_SAFE_INTEGER;
       const bTime = b.elapsedMs ?? Number.MAX_SAFE_INTEGER;
-      if (aTime !== bTime) return aTime - bTime; // faster (lower) time first
+      if (aTime !== bTime) return aTime - bTime;
       return a.hands - b.hands || (a.dateISO < b.dateISO ? -1 : 1);
     }
-    // busts
     return b.hands - a.hands || (a.dateISO < b.dateISO ? -1 : 1);
   });
 
@@ -476,42 +470,36 @@ function renderLeaderboard(){
   }
 
   const lines = [];
-  lines.push("Name           | Result | Hands | Final | Time   | Date");
-  lines.push("----------------+--------+-------+-------+--------+------------------------");
+  lines.push('Name           | Result | Hands | Final | Time   | Date');
+  lines.push('----------------+--------+-------+-------+--------+------------------------');
   for (const e of sorted){
-    const name = (e.name || "�").toString().slice(0,14).padEnd(14," ");
-    const res  = (e.result === "win" ? "WIN" : "BUST").padEnd(6," ");
-    const hands = String(e.hands).padStart(5," ");
-    const fin  = ("$" + e.finalBalance).padStart(6," ");
-    const time = (e.elapsedMs != null ? formatElapsed(e.elapsedMs) : "--:--").padEnd(6," ");
+    const name = (e.name || '�').toString().slice(0,14).padEnd(14,' ');
+    const res  = (e.result === 'win' ? 'WIN' : 'BUST').padEnd(6,' ');
+    const hands = String(e.hands).padStart(5,' ');
+    const fin  = ('$' + e.finalBalance).padStart(6,' ');
+    const time = (e.elapsedMs != null ? formatElapsed(e.elapsedMs) : '--:--').padEnd(6,' ');
     const date = new Date(e.dateISO).toLocaleString();
     lines.push(`${name} | ${res} | ${hands} | ${fin} | ${time} | ${date}`);
   }
-  leaderboardContainer.innerHTML = `<pre style="margin:0; white-space:pre">${lines.join("\n")}</pre>`;
+  leaderboardContainer.innerHTML = `<pre style="margin:0; white-space:pre">${lines.join('\n')}</pre>`;
 }
 
 function openLeaderboard(){
   renderLeaderboard();
-  leaderboardBackdrop.classList.add("open");
+  leaderboardBackdrop.classList.add('open');
 }
 
 function closeLeaderboard(){
-  leaderboardBackdrop.classList.remove("open");
+  leaderboardBackdrop.classList.remove('open');
 }
 
-function exportLeaderboardTxt(){
-  const entries = loadLeaderboard();
-  const header = "Name | Result | Hands | Final | Time | Date";
-  const rows = entries.map(e => {
-    const time = e.elapsedMs != null ? formatElapsed(e.elapsedMs) : "--:--";
-    return `${e.name} | ${e.result} | ${e.hands} | $${e.finalBalance} | ${time} | ${e.dateISO}`;
-  });
-  const text = [header, ...rows].join("\n");
-  const blob = new Blob([text], {type:"text/plain"});
+async function exportLeaderboardTxt(){
+  const res = await fetch('/api/leaderboard/export');
+  const blob = await res.blob();
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
+  const a = document.createElement('a');
   a.href = url;
-  a.download = "leaderboard.txt";
+  a.download = 'leaderboard.txt';
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -545,9 +533,9 @@ leaderboardBackdrop.addEventListener("click", (e) => {
   if(e.target === leaderboardBackdrop){ closeLeaderboard(); }
 });
 exportLeaderboardBtn.addEventListener("click", exportLeaderboardTxt);
-clearLeaderboardBtn.addEventListener("click", () => {
+clearLeaderboardBtn.addEventListener("click", async () => {
   if(confirm("Clear all leaderboard entries?")){
-    saveLeaderboard([]);
+    await fetch('/api/leaderboard', { method: 'DELETE' });
     renderLeaderboard();
   }
 });
